@@ -1,1 +1,0 @@
-# SUNS-zadanie-2
