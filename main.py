@@ -1,8 +1,11 @@
 import pandas as pnds
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 if __name__ == '__main__':
     # bed_type = ['Real Bed', 'Couch', 'Pull-out Sofa', 'Airbed', 'Futon']
@@ -22,9 +25,11 @@ if __name__ == '__main__':
 
     columns = ["latitude", "longitude",
                "host_response_time", "host_response_rate", "host_is_superhost",
-               "room_type", "accommodates", "bathrooms", "bedrooms", "beds",
-               "bed_type", "amenities",
-               "price", "review_scores_rating"]
+               "room_type", "bathrooms", "bedrooms", "beds",
+               "bed_type", "amenities", "review_scores_rating"]
+
+    columnsOutput = ["price", "guests_included", "extra_people", "accommodates"
+                     ]
     host_is_superhost = ["t", "f"]
 
     room_type = {'Hotel room': 1,
@@ -35,6 +40,7 @@ if __name__ == '__main__':
     host_response_time = {'within an hour': 1, 'within a few hours': 2, 'within a day': 3, 'a few days or more': 4}
 
     rawData = pnds.read_csv("listings.csv", usecols=columns, skiprows=[i for i in range(2250, 2250)])
+    rawDataOutput = pnds.read_csv("listings.csv", usecols=columnsOutput, skiprows=[i for i in range(2250, 2250)])
 
     rawData = rawData.replace(np.nan, 0, regex=True)
     rawData = rawData.replace('%', '', regex=True)
@@ -45,6 +51,7 @@ if __name__ == '__main__':
     rawData = rawData.replace('a few days or more', 4, regex=True)
     rawData = rawData.replace('t', 1, regex=False)
     rawData = rawData.replace('f', 0, regex=False)
+    # rawData = rawData.replace({'t': 1, 'f': 0}, inplace=True)
     rawData = rawData.replace(',', '', regex=True)
 
     room_type = pnds.get_dummies(rawData['room_type'], prefix='room_type')
@@ -74,7 +81,47 @@ if __name__ == '__main__':
     rawData = pnds.concat([rawData, bed_type], axis=1)
     rawData = pnds.concat([rawData, convertAmenities], axis=1)
 
+    # rawData.hist(figsize=(20, 20));
+
+    # for index, row in rawDataOutput.iterrows():
+    #     print(row['price'])
+    # print('*************************************')
+
     rawData.to_csv('rawData.csv', header=True)
+
+    rawDataOutput = rawDataOutput.replace('[\$,)]', '', regex=True)
+    rawDataOutput['price'] = rawDataOutput['price'].astype(float)
+
+    rawDataOutputPriceForPerson = []
+    for index, row in rawDataOutput.iterrows():
+        rawDataOutputPriceForPerson.append(row['price'] / row['accommodates'])
+
+    # average = np.mean(rawDataOutputPriceForPerson) - 4.005
+    toCompare = 24.5
+
+    rawDataOutputClass = []
+    oneCounter = 0
+    zeroCounter = 0
+    for row in rawDataOutputPriceForPerson:
+        if row > toCompare:
+            rawDataOutputClass.append(1)
+            oneCounter += 1
+        else:
+            rawDataOutputClass.append(0)
+            zeroCounter += 1
+
+    print(rawDataOutputPriceForPerson)
+    print('**********************************22***')
+    print(toCompare)
+    print('*************************************')
+    print(rawDataOutputClass)
+    print('**************************233***********')
+    print(oneCounter)
+    print(zeroCounter)
+    print('**************************233***********')
+
+    rawDataOutput.to_csv('rawDataOutput.csv', header=True)
+
     room_type.to_csv('room_type.csv', header=True)
 
     # len pre nazov :D
@@ -85,61 +132,37 @@ if __name__ == '__main__':
     scaler.fit(parsedData)
     scaledAllData = scaler.transform(parsedData)
 
+    scaler.fit(rawDataOutput)
+    scaledAllDataOutput = scaler.transform(rawDataOutput)
+
     print(scaledAllData[2248])
 
     # df_x = scaledAllData.iloc[:, 1:]
-    # df_y = scaledAllData.iloc[:, 0]
-    # x_train, x_test, y_train, y_test = train_test_split(df_x, df_y, test_size=0.2, random_state=4)
+    # df_y = scaledAllDataOutput.iloc[:, 0]
+    x_train, x_test, y_train, y_test = train_test_split(scaledAllData, rawDataOutputClass, test_size=0.2,
+                                                        random_state=4)
 
-    # print(x_train)
-    # print(x_test)
-    splitArrayData = np.split(scaledAllData, [225, 2025])
-    validacneData = splitArrayData[0]
-    trenovacieData = splitArrayData[1]
-    testovacieData = splitArrayData[2]
+    print('\n---------x_train----------')
+    print(x_train)
+    print('\n---------x_test----------')
+    print(x_test)
+    print('\n---------y_train----------')
+    print(y_train)
+    print('\n---------y_test----------')
+    print(y_test)
 
-    print('\n---------validacneData----------')
-    print(validacneData)
-    print(len(splitArrayData[0]))
-    print('\n---------trenovacieData----------')
-    print(trenovacieData)
-    print(len(splitArrayData[1]))
-    print('\n---------testovacieData----------')
-    print(testovacieData)
-    print(len(splitArrayData[2]))
+    print('\n---------MLPClassifier ----------')
+    clf = MLPClassifier(alpha=1e-5, hidden_layer_sizes=(150, 100), random_state=4, verbose=5, max_iter=500, tol=0.0017)
+    # learning_rate
+    clf.fit(x_train, y_train)
 
-    print('\n---------SKUUUUSKA ? :D ----------')
-    clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1)
-    # clf.fit(trenovacieData, validacneData)
+    y_pred = clf.predict(x_test)
 
-    # for x in range(len(rawData.index)):
-    #
-    #     # superhost
-    #     if rawData.at[x, "host_is_superhost"] == "t":
-    #         rawData.at[x, "host_is_superhost"] = 1
-    #     elif rawData.at[x, "host_is_superhost"] == "f":
-    #         rawData.at[x, "host_is_superhost"] = 0
-    #     else:
-    #         rawData.at[x, "host_is_superhost"] = -1 #ten isty problem bude ako pri host_response_time
-    #         print(x)
-    #
-    #     # room type
-    #     if rawData.at[x, "room_type"] in room_type:
-    #         rawData.at[x, "room_type"] = room_type[rawData.at[x, "room_type"]]
-    #     else:
-    #         rawData.at[x, "room_type"] = -1 #ten isty problem bude ako pri host_response_time
-    #
-    #     # host_response_time
-    #     if rawData.at[x, "host_response_time"] in host_response_time:
-    #         rawData.at[x, "host_response_time"] = host_response_time[rawData.at[x, "host_response_time"]]
-    #         print("DOBRE")
-    #     else:
-    #         rawData.at[x, "host_response_time"] = 69 #tu je problem, prepise to tu, ale ptm to nejako zmizne
-    #         print(x)
-    #         print(rawData.at[x, "host_response_time"])
-    #         print("---ZLEE---")
-    #
-    #     print(rawData.at[x, "host_response_time"])
+    accuracy = accuracy_score(y_test, y_pred) * 100
 
-    # print(rawData.room_type.unique())
-    # print(rawData.host_is_superhost.at[208, "host_is_superhost"])
+    print(accuracy, ' %')
+
+    cm = confusion_matrix(y_test, y_pred)
+    sns.heatmap(cm, center=True)
+    plt.show()
+ # price/accom   +  (daco/daco/2)
